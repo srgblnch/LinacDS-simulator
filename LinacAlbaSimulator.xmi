@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="ASCII"?>
 <pogoDsl:PogoSystem xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:pogoDsl="http://www.esrf.fr/tango/pogo/PogoDsl">
   <classes name="LinacAlbaSimulator" pogoRevision="8.1">
-    <description description="Device server to simulate the behaviour of the Alba,s linac PLCs (siemens s7)" title="LinacAlbaSimulator" sourcePath="/home/serguei/src/Linac/LinacSimulator" language="Python" filestogenerate="XMI   file,Code files,html Pages" license="GPL" hasMandatoryProperty="true" hasConcreteProperty="true" hasAbstractCommand="false" hasAbstractAttribute="false" descriptionHtmlExists="false">
+    <description description="Device server to simulate the behaviour of the Alba,s linac PLCs (siemens s7)" title="LinacAlbaSimulator" sourcePath="/home/serguei/src/Linac/LinacAlbaSimulator" language="Python" filestogenerate="XMI   file,Code files,html Pages" license="GPL" hasMandatoryProperty="true" hasConcreteProperty="true" hasAbstractCommand="false" hasAbstractAttribute="false" descriptionHtmlExists="false">
       <inheritances classname="Device_Impl" sourcePath=""/>
       <identification contact="at cells.es - sblanch" author="sblanch" emailDomain="cells.es" classFamily="Simulators" siteSpecific="" platform="All Platforms" bus="Socket" manufacturer="none" reference=""/>
     </description>
-    <deviceProperties name="Port" mandatory="true" description="">
-      <type xsi:type="pogoDsl:UIntType"/>
-      <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
-    </deviceProperties>
-    <deviceProperties name="plc" mandatory="true" description="plc1,plc2,plc3,plck">
+    <deviceProperties name="plcType" mandatory="true" description="plc1,plc2,plc3,plc4,plc5">
       <type xsi:type="pogoDsl:StringType"/>
       <status abstract="false" inherited="false" concrete="true" concreteHere="true"/>
     </deviceProperties>
