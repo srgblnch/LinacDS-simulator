@@ -21,129 +21,187 @@
 '''
 
 from numpy import array,uint8
+import PyTango
 
-#Read the 20130604_172208 from the real linac to become a sample for the simulator
-memoryMap = array(#read segment
-             [0x00,0x00,0x00,0x00,#000 GUN_Filament_V
-              0x3d,0x6d,0x08,0x00,#004 GUN_Filament_I
-              0x41,0xf0,0x48,0x4f,#008 GUN_Kathode_V
-              0x41,0xcc,0xa1,0x2d,#012 GUN_Kathode_T
-              0x00,0x00,0x00,0x00,#016
-              0x00,0x00,0x00,0x00,#020
-              0x00,0x00,0x00,0x00,#024
-              0x00,0x00,0x00,0x00,#028
-              0x3d,0x78,0x74,0xc7,#032 GUN_HV_V
-              0x3e,0x31,0xc6,0x00,#036 GUN_HV_I
-              0x43,0x0a,0x05,0x58,#040 PHS1_Phase
-              0x00,0x00,0x00,0x00,#044
-              0x40,0x2c,0x84,0xb4,#048 SF6_P1
-              0x40,0x33,0x00,0x00,#052 SF6_P2
-              0xc1,0x31,0x37,0xab,#056 PHS2_Phase
-              0xbd,0x7f,0x8b,0xdf,#060 ATT2_P
-              0x00,0x00,0x00,0x00,#064
-              0b00000100,#068 DI_0to7
-              #0:TB_ST 4:A0_ST 5: RFS_ST
-              0b11100000,#069 DI_8to15 not used
-              0b11000000,#070 DI_16to23
-              #0:EG_ENB 1: KA_ENB 2:TL_VOK 5IU_RDY 6:W1_UF 7:W2_UF
-              0b10001111,#071 DI_24to31
-              #0:W2_UF 1:RL1_UF 2:RL2_UF 3:RL3_UF
-              #4:UT_IS 5:MG_IS  6:GM_IS  7:LO_VOK
-              0b00001010,#072 DI_Comm 0:HeartBeat
-              #0:PLC1_HB 2:PLC1_PR(not-ds) 4:PLC1_PS(not-ds)
-              0b00000011,#073 DI_ITLK_L
-              #0:SF6P1_ST 1:SF6P2_ST 2:KA1_EN 3:KA2_EN 4:LI_RDY 5:RF_ENB
-              0x01,#074 Gun_HV_ST
-              0x01,#075 Gun_ST
-              0x02,#076 SCM1_ST
-              0x02,#077 SCM2_ST
-              0x02,#078 SCM3_ST
-              0x02,#079 PHS1_ST
-              0x05,#080 PHS2_ST
-              0x05,#081 ATT2_ST
-              0x01,#082 Lock_ST
-              0x00,#083 
-              0x40,0xc9,0x99,0x9a,#084 EG_FVS (not-ds)
-              0x41,0xa7,0xff,0xee,#088 EG_KVS (not-ds)
-              0x00,0x00,0x00,0x00,#092 
-              0x00,0x00,0x00,0x00,#096 
-              0xc2,0xb3,0xff,0xff,#100 GUN_HV_V_setpoint
-              0xc1,0x76,0x66,0x5e,#104 TB_GPA
-              0x43,0x0a,0x00,0x00,#108 PHS1_PS (not-ds)
-              0x43,0xd9,0x80,0x00,#112 A0_OP
-              0x43,0x0e,0x00,0x00,#116 TPS0_Phase
-              0x42,0x8c,0x00,0x00,#120 TPS1_Phase
-              0x43,0x09,0x00,0x00,#124 TPS2_Phase
-              0x43,0x11,0x00,0x00,#128 TPSX_Phase
-              0x00,0x00,0x00,0x00,#132
-              0x00,0x00,0x00,0x00,#136
-              0x42,0xfe,0x00,0x00,#140 PHS2_PS (not-ds)
-              0xc0,0x39,0x99,0xb0,#144 ATT2_PS (not-ds)
-              0x00,0x31,#148 TB_KA1_Delay
-              0x0a,0xa0,#150 TB_KA2_Delay
-              0x07,0x80,#152 TB_RF2_Delay
-              0x0c,0x60,#154 TB_Gun_Delay
-              0x00,0x40,#156 TB_GPI
-              0x00,0x08,#158 TB_GPN
-              0x00,0x02,#160 TB_GPM
-              0x01,#162 DO_0to7
-              #0:TB_MBM 2:GUN_HV_ONC 3:Interlock_RC 5:GUN_LV_ONC
-              0x00,#163 DO_8to15
-              #0:SM1_DC 1:SM2_DC 2:SM3_DC 3:SM1_LC 4:SM2_LC 5:SM3_LC
-              0x01 #164 Local_lock 0:localCtrl
-             ],dtype=uint8)
-#             #write segment
-#             [0x00,0x00,0x00,0x00,#000
-#              0x3d,0x6d,0x08,0x00,#004
-#              0x41,0xf0,0x48,0x4f,#008
-#              0x41,0xcc,0xa1,0x2d,#012
-#              0x00,0x00,0x00,0x00,#016
-#              0x00,0x00,0x00,0x00,#020
-#              0x00,0x00,0x00,0x00,#024
-#              0x00,0x00,0x00,0x3d,#028
-#              0x78,0x74,0xc7,0x3e,#032
-#              0x31,0xc6,0x00,0x43,#036
-#              0x0a,0x05,0x58,0x00,#040
-#              0x00,0x00,0x00,0x40,#044
-#              0x2c,0x84,0xb4,0x40,#048
-#              0x33,0x00,0x00,0xc1,#052
-#              0x31,0x37,0xab,0x7f,#056
-#              0x8b,0xdf,0x00,0x00,#060
-#              0x00,0x04,#064
-#              0xe0,0xc0,#066
-#              0x8f,0x0a,#068
-#              0x03,0x01,#070
-#              0x01,0x02,#072
-#              0x02,0x02,#074
-#              0x02,0x05,#076
-#              0x05,#078
-#              0x01,#079
-#              0x00,#080
-#              0x40,#081
-#              0xc9,#082
-#              0x99,#083
-#              0x9a,0x41,0xa7,0xff,#084
-#              0xee,0x00,0x00,0x00,#088
-#              0x00,0x00,0x00,0x00,#092
-#              0xc2,0xb3,0xff,0xff,#096
-#              0xc1,0x76,0x66,0x5e,#100
-#              0x43,0x0a,0x00,0x00,#104
-#              0x43,0xd9,0x80,0x00,#108
-#              0x43,0x0e,0x00,0x00,#112
-#              0x42,0x8c,0x00,0x00,#116
-#              0x43,0x09,0x00,0x00,#120
-#              0x43,0x11,0x00,0x00,#124
-#              0x00,0x00,0x00,0x00,#128
-#              0x00,0x00,0x00,0x00,#132
-#              0x42,0xfe,0x00,0x00,#136
-#              0xc0,0x39,0x99,0xb0,#140
-#              0x00,0x31,0x0a,0xa0,#144
-#              0x07,0x80,#148
-#              0x0c,0x60,#150
-#              0x00,0x40,#152
-#              0x00,0x08,#156
-#              0x00,0x02,#158
-#              0x01,0x00,#160
-#              0x01#162
-#             ]
-#            ]
+READSIZE = 165
+WRITESIZE = 81
+
+memoryMap = array([0x00]*(READSIZE),dtype=uint8)
+
+#---- Read from li/ct/plc1 the 20130626 and modified
+#     first level keys:
+#      - type: type of stored data
+#      - read_{addr,bit,value}: memory position when memory is send to read
+#      - write_{addr,bit,value}: memory position from the received memory to write
+#     second level keys:
+#      - updatable: this attribute has some noise
+#      - std: how big is the noise of this attribute
+#      - step: on each refresh loop the change to do.
+#      - reference: (TODO) key whose name is readback
+#      - formula: (TODO) in case is more a reference than a readback
+attributes = \
+{'GUN_Filament_V': {'type': ('f', 4),
+                    'read_addr':  0,    'read_value':  0.0,
+                    'write_addr': 0,    'write_value': 0.0,
+                    'updatable':True,
+                    'std':0.01},
+ 'GUN_Filament_I': {'type': ('f', 4),
+                    'read_addr':  4,    'read_value': 0.0},
+ 'GUN_Kathode_V':  {'type': ('f', 4),
+                    'read_addr':  8,    'read_value': 0.0,
+                    'write_addr': 4,    'write_value': 0.0,
+                    'updatable':True,
+                    'std':0.01},
+ 'GUN_Kathode_T':  {'type': ('f', 4),
+                    'read_addr': 12,    'read_value': 25.0,
+                    'updatable':True,
+                    'std':0.01,},
+#free floats 16,20,24,28
+ 'GUN_HV_V':       {'type': ('f', 4),
+                    'read_addr': 32,    'read_value': 0.0,
+                    'updatable':True,
+                    'std':0.01,},
+ 'GUN_HV_I':       {'type': ('f', 4),
+                    'read_addr': 36,    'read_value': 0.0,
+                    'updatable':True,
+                    'std':0.01,},
+ 'PHS1_Phase':     {'type': ('f', 4),
+                    'read_addr': 40,    'read_value': 152.87,
+                    'updatable':True,
+                    'std':0.01,},
+#free float 44
+ 'SF6_P1':         {'type': ('f', 4),
+                    'read_addr': 48,    'read_value': 2.96,
+                    'updatable':True,
+                    'std':0.01,},
+ 'SF6_P2':         {'type': ('f', 4),
+                    'read_addr': 52,    'read_value': 2.80,
+                    'updatable':True,
+                    'std':0.01,},
+ 'PHS2_Phase':     {'type': ('f', 4),
+                    'read_addr': 56,    'read_value': 92.52,
+                    'updatable':True,
+                    'std':0.01,},
+ 'ATT2_P':         {'type': ('f', 4),
+                    'read_addr': 60,    'read_value':  -3.92,
+                    'write_addr': 60,   'write_value': -4.00,
+                    'updatable':True,
+                    'std':0.01},
+#free float 64
+#non-ds byte 68
+#free byte 69
+#non-ds bytes 70,71
+ 'HeartBeat':      {'type': PyTango.DevBoolean,
+                    'read_addr': 72,'read_bit': 0,'read_value': True},
+ 'SF6_P1_ST':      {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 0,'read_value': True,},
+ 'SF6_P2_ST':      {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 1,'read_value': True},
+ 'KA1_OK':         {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 2,'read_value': True},
+ 'KA2_OK':         {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 3,'read_value': True},
+ 'LI_OK':          {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 4,'read_value': True},
+ 'Gun_HV_ST':      {'type': ('B', 1),
+                    'read_addr': 74,'read_value': 4},
+ 'RF_OK':          {'type': PyTango.DevBoolean,
+                    'read_addr': 73,'read_bit': 5,'read_value': True},
+ 'Gun_ST':         {'type': ('B', 1),
+                    'read_addr': 75,'read_value': 8},
+ 'SCM1_ST':        {'type': ('B', 1),
+                    'read_addr': 76,'read_value': 2},
+ 'SCM2_ST':        {'type': ('B', 1),
+                    'read_addr': 77,'read_value': 2},
+ 'SCM3_ST':        {'type': ('B', 1),
+                    'read_addr': 78,'read_value': 2},
+ 'PHS1_ST':        {'type': ('B', 1),
+                    'read_addr': 79,'read_value': 2},
+ 'PHS2_ST':        {'type': ('B', 1),
+                    'read_addr': 80,'read_value': 2},
+ 'ATT2_ST':        {'type': ('B', 1),
+                    'read_addr': 81,'read_value': 2},
+ 'Lock_ST':        {'type': ('B',1),
+                    'read_addr': 82,'read_value': 0},
+ 'GUN_HV_V_setpoint': {'type': ('f', 4),
+                       'read_addr': 100,'read_value':  0.0,
+                       'write_addr': 16,'write_value': 0.0,
+                       'updatable':True,
+                       'std':0.01},
+ 'TB_GPA':         {'type': ('f', 4),
+                    'read_addr': 104,'read_value':  0.0,
+                    'write_addr': 20,'write_value': 0.0,
+                    'updatable':True,
+                    'std':0.01},
+ 'A0_OP':          {'type': ('f', 4),
+                    'read_addr': 112,'read_value':  0.0,
+                    'write_addr': 28,'write_value': 0.0,
+                    'updatable':True,
+                    'std':0.01},
+ 'TPS0_Phase':     {'type': ('f', 4),
+                    'read_addr': 116,'read_value': 192.0,
+                    'write_addr': 32,'write_value': 192.0},
+ 'TPS1_Phase':     {'type': ('f', 4),
+                    'read_addr': 120,'read_value': 112.0,
+                    'write_addr': 36,'write_value': 112.0},
+ 'TPS2_Phase':     {'type': ('f', 4),
+                    'read_addr': 124,'read_value': 151.0,
+                    'write_addr': 40,'write_value': 151.0},
+ 'TPSX_Phase':     {'type': ('f', 4),
+                    'read_addr': 128,'read_value': 145.0,
+                    'write_addr': 44,'write_value': 145.0},
+ 'TB_KA1_Delay':   {'type': ('h', 2),
+                    'read_addr': 148,'read_value': 49,
+                    'write_addr': 64,'write_value': 49},
+ 'TB_KA2_Delay':   {'type': ('h', 2),
+                    'read_addr': 150,'read_value': 2720,
+                    'write_addr': 66,'write_value': 2720},
+ 'TB_RF2_Delay':   {'type': ('h', 2),
+                    'read_addr': 152,'read_value': 1920,
+                    'write_addr': 68,'write_value': 1920},
+ 'TB_Gun_Delay':   {'type': ('h', 2),
+                    'read_addr': 154,'read_value': 3168,
+                    'write_addr': 70,'write_value': 3168},
+ 'TB_GPI':         {'type': ('h', 2),
+                    'read_addr': 156,'read_value': 64,
+                    'write_addr': 72,'write_value': 64},
+ 'TB_GPN':         {'type': ('h', 2),
+                    'read_addr': 158,'read_value': 8,
+                    'write_addr': 74,'write_value': 8},
+ 'TB_GPM':         {'type': ('h', 2),
+                    'read_addr': 160,'read_value': 2,
+                    'write_addr': 76,'write_value': 2},
+ 'TB_MBM':         {'type': PyTango.DevBoolean,
+                    'read_addr': 162,'read_bit': 0,'read_value': True,
+                    'write_addr': 78,'write_bit': 0,'write_value': True},
+ 'GUN_HV_ONC':     {'type': PyTango.DevBoolean,
+                    'read_addr': 162,'read_bit': 2,'read_value': True,
+                    'write_addr': 78,'write_bit': 2,'write_value': True},
+ 'Interlock_RC':   {'type': PyTango.DevBoolean,
+                    'read_addr': 162,'read_bit': 3,'read_value': False,
+                    'write_addr': 78,'write_bit': 3,'write_value': False},
+ 'GUN_LV_ONC':     {'type': PyTango.DevBoolean,
+                    'read_addr': 162,'read_bit': 5,'read_value': True,
+                    'write_addr': 78,'write_bit': 5,'write_value': True},
+ 'SCM1_DC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 0,'read_value': False,
+                    'write_addr': 79,'write_bit': 0,'write_value': False},
+ 'SCM2_DC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 1,'read_value': False,
+                    'write_addr': 79,'write_bit': 1,'write_value': False},
+ 'SCM3_DC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 2,'read_value': False,
+                    'write_addr': 79,'write_bit': 2,'write_value': False},
+ 'SCM1_LC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 3,'read_value': False,
+                    'write_addr': 79,'write_bit': 3,'write_value': False},
+ 'SCM2_LC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 4,'read_value': False,
+                    'write_addr': 79,'write_bit': 4,'write_value': False},
+ 'SCM3_LC':        {'type': PyTango.DevBoolean,
+                    'read_addr': 163,'read_bit': 5,'read_value': False,
+                    'write_addr': 79,'write_bit': 5,'write_value': False},
+ 'Locking':        {'type': PyTango.DevBoolean,
+                    'read_addr': 164,'read_bit': 0,'read_value': False,
+                    'write_addr': 80,'write_bit': 0,'write_value': False},
+}
