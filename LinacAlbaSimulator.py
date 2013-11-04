@@ -68,7 +68,7 @@ def getPlcNumber(plc_type):
     elif plc_type == "plc5": return 5
     else: return None
 def getPlcPort(plc_number):
-    return 2010+plc_number
+    return (2000+plc_number,2010+plc_number)
 def getPlc(plc_number):
     if plc_number == 1:
         return plc1
@@ -105,6 +105,9 @@ def noise(center,std):
     #            drift away from the original.
     return random.normalvariate(center,std)
 
+LOCAL = 0
+REMOTE = 1
+
 #----- PROTECTED REGION END -----#	//	LinacAlbaSimulator.additionnal_import
 
 ## Device States Description
@@ -114,45 +117,46 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
 
     #--------- Add you global variables here --------------------------
     #----- PROTECTED REGION ID(LinacAlbaSimulator.global_variables) ENABLED START -----#
-    def listener(self):
+    def listener(self,connType):
         E = ()
-        self.buildSocketListener()
+        self.buildSocketListener(connType)
         while not self.joinEventIsSet():
             try:
-                self.__connection.send(self.__memoryMap.tostring())
-                ready = select.select( [self.__connection.fileno()], E,E, 0)
+                self.__connection[connType].send(self.__memoryMap.tostring())
+                ready = select.select( [self.__connection[connType].fileno()], E,E, 0)
                 if ready[0]:
-                    recv = self.__connection.recv(self.__plc.WRITESIZE)
+                    recv = self.__connection[connType].recv(self.__plc.WRITESIZE)
                     if len(recv) != 0:
-                        receiver = threading.Thread(target=self.processInputReceived,
-                                                    args=([recv]))
-                        receiver.setDaemon(True)
-                        receiver.start()
+                        self.__processorThread[connType] = threading.Thread(target=self.processInputReceived,
+                                                                            args=([recv,connType]))
+                        self.__processorThread[connType].setDaemon(True)
+                        self.__processorThread[connType].start()
                     else:
-                        self.warn_stream("(%d) nothing received"%(self.Port))
+                        self.warn_stream("(%d) nothing received"%(self.Port[connType]))
                 self.updateHeartbeat()
-                self.updateRegisters()
+                self.updateRegisters(connType)
                 time.sleep(self.attr_HeartbeatPeriod_read)
             except Exception,e:
                 self.debug_stream("(%d) Exiting the loop due to Exception: %s"
-                                  %(self.Port,e))
+                                  %(self.Port[connType],e))
                 try: connection.close()
                 except: pass
-                self.buildSocketListener()
+                self.buildSocketListener(connType)
         connection.close()
-    def buildSocketListener(self):
-        self.__socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__socket.bind((self.Host,self.Port))
-        self.__socket.listen(BACKLOG)
-        self.info_stream("PLC listener prepared (%d)."%(self.Port))
-        self.__connection,address = self.__socket.accept()
+    def buildSocketListener(self,connType):
+        self.__socket[connType] = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.__socket[connType].bind((self.Host,self.Port[connType]))
+        self.__socket[connType].listen(BACKLOG)
+        self.info_stream("PLC listener prepared (%d)."%(self.Port[connType]))
+        self.__connection[connType] = self.__socket[connType].accept()[0]
         self.debug_stream("PLC connection accepted (port %d, descriptor %d)."
-                          %(self.Port,self.__connection.fileno()))
+                          %(self.Port[connType],self.__connection[connType].fileno()))
+        
     def joinEventIsSet(self):
         return self.__joinerEvent.isSet()
     def setJoinEvent(self):
         self.__joinerEvent.set()
-        print("(%d) join event set"%(self.Port))
+        print("(%d,%d) join event set"%(self.Port[LOCAL],self.Port[REMOTE]))
     def setDefaultRegisters(self):
         try:
             for k in self.__plc.attributes.keys():
@@ -173,22 +177,22 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                         value << bit
                         self.__memoryMap[register] |= value
                     else:
-                        self.error_stream("(%d) setDefaultRegisters: not "\
+                        self.error_stream("(%d'%d) setDefaultRegisters: not "\
                                           "understood %s type"
-                                          %(self.Port,attribute['type']))
+                                          %(self.Port[LOCAL],self.Port[REMOTE],attribute['type']))
                 except Exception,e:
-                    self.error_stream("(%d) setDefaultRegisters, key %s "\
-                                      "exception: %s"%(self.Port,k,e))
+                    self.error_stream("(%d,%d) setDefaultRegisters, key %s "\
+                                      "exception: %s"%(self.Port[LOCAL],self.Port[REMOTE],k,e))
                     traceback.format_exc(e)
         except Exception,e:
-            self.error_stream("(%d) setDefaultRegisters, defaults key loop "\
-                              "exception: %s"%(self.Port,e))
+            self.error_stream("(%d,%d) setDefaultRegisters, defaults key loop "\
+                              "exception: %s"%(self.Port[LOCAL],self.Port[REMOTE],e))
             traceback.format_exc(e)
     def updateHeartbeat(self):
         address = self.__plc.attributes['HeartBeat']['read_addr']
         self.__memoryMap[address] = int(not bool(self.__memoryMap[address]))
         #self.debug_stream("Heartbeat %d"%(self.__memoryMap[address]))
-    def updateRegisters(self):
+    def updateRegisters(self,connType):
         try:
             for k in self.__plc.attributes.keys():
                 attribute = self.__plc.attributes[k]
@@ -203,14 +207,14 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                             elif attribute['write_value'] > attribute['read_value']:
                                 attribute['read_value'] += attribute['step']
                             self.debug_stream("(%d) updateRegisters: step the "\
-                                              "value"%(self.Port))
+                                              "value"%(self.Port[connType]))
                         else:
                             attribute['read_value'] = attribute['write_value']
                             self.debug_stream("(%d) updateRegisters: apply "\
-                                              "the write value of %s"%(self.Port,k))
+                                              "the write value of %s"%(self.Port[connType],k))
                 except Exception,e:
                     self.error_stream("(%d) updateRegisters: exception in "\
-                                      "step of key %s: %s"%(self.Port,k,e))
+                                      "step of key %s: %s"%(self.Port[connType],k,e))
                     traceback.format_exc(e)
                 #check it this ROattribute becomes the readback of another Wattribute
                 try:
@@ -224,14 +228,14 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                                 elif referenceAttr['read_value'] > attribute['read_value']:
                                     attribute['read_value'] += attribute['step']
                                 self.debug_stream("(%d) updateRegisters: step the "\
-                                                  "value to the reference"%(self.Port))
+                                                  "value to the reference"%(self.Port[connType]))
                             else:
                                 attribute['read_value'] = referenceAttr['read_value']
                                 self.debug_stream("(%d) updateRegisters: apply "\
-                                              "the reference read value of %s"%(self.Port,k))
+                                              "the reference read value of %s"%(self.Port[connType],k))
                 except Exception,e:
                     self.error_stream("(%d) updateRegisters: exception in "\
-                                      "readback of key %s: %s"%(self.Port,k,e))
+                                      "readback of key %s: %s"%(self.Port[connType],k,e))
                     traceback.format_exc(e)
                 #check if the value has some noise in the reading to make it.
                 try:
@@ -244,7 +248,7 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                                       attribute['std'])
                 except Exception,e:
                     self.error_stream("(%d) updateRegisters: exception in the "\
-                                      "update of key %s: %s"%(self.Port,k,e))
+                                      "update of key %s: %s"%(self.Port[connType],k,e))
                     traceback.format_exc(e)
                 #after the three possibilities:
                 #  - apply to the read_value what is in the write_value (or an step)
@@ -252,16 +256,16 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                 #  - apply some noise to the reading
                 #it's time to place this value to the memory map that will be 
                 #transmitted to the reader
-                self.__apply2mem(k, attribute)
+                self.__apply2mem(k,attribute,connType)
         except Exception,e:
             self.error_stream("(%d) updateRegisters: loop exception: %s"
-                              %(self.Port,e))
+                              %(self.Port[connType],e))
             traceback.format_exc(e)
         #self.debug_stream(self.__memoryMap)
-    def processInputReceived(self,inputs):
+    def processInputReceived(self,inputs,origin):
         inputMap = array.array('B')
         inputMap.fromstring(inputs)
-        self.debug_stream("(%d) received as array %s"%(self.Port,inputMap))
+        self.debug_stream("(%d) received as array %s"%(self.Port[origin],inputMap))
         for k in self.__plc.attributes.keys():
             attribute = self.__plc.attributes[k]
             try:
@@ -279,18 +283,18 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                     else:
                         self.error_stream("(%d) processInputReceived: not "\
                                           "understood %s type"
-                                          %(self.Port,attribute['type']))
+                                          %(self.Port[origin],attribute['type']))
                         value = attribute['write_value'] #To avoid exception
                     if not value == attribute['write_value']:
                         self.debug_stream("(%d) processInputReceived: new "\
-                                          "wvalue for %s"%(self.Port,k))
+                                          "wvalue for %s"%(self.Port[origin],k))
                         attribute['write_value'] = value
             except Exception,e:
                 self.error_stream("(%d) processInputReceived: exception "\
-                                  "in key %s: %s"%(self.Port,k,e))
+                                  "in key %s: %s"%(self.Port[origin],k,e))
                 traceback.format_exc(e)
                 
-    def __apply2mem(self,name,attribute):
+    def __apply2mem(self,name,attribute,connType):
         register = attribute['read_addr']
         value = attribute['read_value']
         if attribute['type'] == ('f', 4):
@@ -308,7 +312,7 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
             self.__memoryMap[register] = byte
         else:
             self.error_stream("(%d) __apply2mem: not understood %s type for %s"
-                              %(self.Port,valuetype,name))
+                              %(self.Port[connType],valuetype,name))
     #----- PROTECTED REGION END -----#	//	LinacAlbaSimulator.global_variables
 
     def __init__(self,cl, name):
@@ -339,13 +343,18 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         self.__plc = getPlc(plcNum)
         self.__memoryMap = self.__plc.memoryMap
         self.setDefaultRegisters()
-        self.__socket = None
-        self.__connection = None
+        self.__listenerThread = [None,None]
+        self.__processorThread = [None,None]
+        self.__socket = [None,None]
+        self.__connection = [None,None]
         self.__joinerEvent = threading.Event()#to communicate between threads
         self.__joinerEvent.clear()
-        self.__thread = threading.Thread(target=self.listener)
-        self.__thread.setDaemon(True)
-        self.__thread.start()
+        self.__listenerThread[LOCAL] = threading.Thread(target=self.listener,args=([LOCAL]))
+        self.__listenerThread[LOCAL].setDaemon(True)
+        self.__listenerThread[LOCAL].start()
+        self.__listenerThread[REMOTE] = threading.Thread(target=self.listener,args=([REMOTE]))
+        self.__listenerThread[REMOTE].setDaemon(True)
+        self.__listenerThread[REMOTE].start()
         #----- PROTECTED REGION END -----#	//	LinacAlbaSimulator.init_device
 
     def always_executed_hook(self):
