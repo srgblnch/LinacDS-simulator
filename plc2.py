@@ -167,7 +167,7 @@ attributes = \
             'std':1e-10},
  'HeartBeat': {'read_addr': 99,
                'read_bit': 0,
-               'read_value': True,
+               'read_value': False,
                'type': PyTango.DevBoolean},
  'IP1_IS': {'read_addr': 86,
             'read_bit': 0,
