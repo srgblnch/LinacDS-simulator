@@ -275,6 +275,8 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                         self.error_stream("In _setDefaultRegisters(): "\
                                           "not understood %s type"
                                           %(attribute['type']))
+                    if attribute.has_key('updatable'):
+                        attribute['ref_value'] = attribute['read_value']
                 except Exception,e:
                     self.error_stream("In _setDefaultRegisters(), key %s "\
                                       "exception: %s"%(k,e))
@@ -472,9 +474,9 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                     return
             if attribute.has_key('reference'):
                 referenceAttr = self._plc.attributes[attribute['reference']]
-                if not attribute['read_value'] == referenceAttr['read_value']:
+                if not attribute['ref_value'] == referenceAttr['read_value']:
                     if attribute.has_key('step'):
-                        attribute['read_value'] = noise(referenceAttr['read_value'],\
+                        attribute['read_value'] = noise(referenceAttr['ref_value'],\
                                                         attribute['step']/10)
 #                         if referenceAttr['read_value'] < attribute['read_value']:
 #                             attribute['read_value'] -= attribute['step']
@@ -483,7 +485,7 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
 #                         self.debug_stream("In _updateRegisters(): "\
 #                                           "step the value to the reference")
                     else:
-                        attribute['read_value'] = referenceAttr['read_value']
+                        attribute['read_value'] = referenceAttr['ref_value']
 #                         self.debug_stream("apply the reference read "\
 #                                           "value of %s"%(attrName))
         except Exception,e:
@@ -497,13 +499,26 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         try:
             if attribute.has_key('updatable') and \
                attribute['updatable'] == True:
-                #use the recorded value to introduce noise to it,
-                # this avoids a drift due to noise of noised
-                attribute['read_value'] = noise(attribute['read_value'],\
-                                                attribute['std'])
-#                 self.debug_stream("applying noise to:%20s "\
-#                                   "reference %6.3f (std:%6.3f) value %6.3f"
-#                                   %(attrName,attribute['read_value'],attribute['std'],value))
+                if attribute.has_key('std'):
+                    #use the recorded value to introduce noise to it,
+                    # this avoids a drift due to noise of noised
+                    attribute['read_value'] = noise(attribute['ref_value'],\
+                                                    attribute['std'])
+#                    self.debug_stream("applying noise to:%20s "\
+#                                      "reference %6.3f (std:%6.3f) value %6.3f"
+#                                      %(attrName,attribute['read_value'],
+#                                        attribute['std'],value))
+                elif attribute.has_key('probability'):
+                    probability = random.random()
+                    if random.random() <= attribute['probability'] and \
+                       attribute['type'] == PyTango.DevBoolean:
+                        attribute['read_value'] = not attribute['ref_value']
+#                        self.debug_stream("glitching attribute %s"%(attrName))
+                    else:
+                        attribute['read_value'] = attribute['ref_value']
+                elif attribute.has_key('range'):
+                    #attribute['read_value'] = random.randint(0,attribute['range'])
+                    attribute['read_value'] = (attribute['read_value']+1)%attribute['range']
         except Exception,e:
                     self.error_stream("In __updateAttr(%s) exception: %s"
                                       %(attrName,e))
