@@ -430,19 +430,26 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                 #           or depend on others value do be modifiable.
                 if attribute.has_key('step'):
                     if attribute['write_value'] < attribute['read_value']:
-                        attribute['read_value'] -= attribute['step']
+                        #if it is decreasing
+                        if abs(attribute['read_value']-attribute['write_value'])>attribute['step']:
+                            attribute['read_value'] -= attribute['step']
+                        else:
+                            attribute['read_value'] = attribute['write_value']
                     elif attribute['write_value'] > attribute['read_value']:
-                        attribute['read_value'] += attribute['step']
+                        #if it is increasing
+                        if abs(attribute['read_value']-attribute['write_value'])>attribute['step']:
+                            attribute['read_value'] += attribute['step']
+                        else:
+                            attribute['read_value'] = attribute['write_value']
 #                     self.debug_stream("In _updateRegisters(): apply "\
 #                                       "an step of %s to %s"
 #                                       %(repr(attribute['step']),attrName))
                 else:
-                    if attrName == 'Locking':
-                        self.debug_stream("In __applyWrite(%s) write value %s (was %s) [addr:%d]"
-                                      %(attrName,
-                                        repr(attribute['write_value']),
-                                        repr(attribute['read_value']),
-                                        attribute['read_addr']))
+#                     self.debug_stream("In __applyWrite(%s) write value %s "\
+#                                       "(was %s) [addr:%d]"%(attrName,
+#                                       repr(attribute['write_value']),
+#                                       repr(attribute['read_value']),
+#                                       attribute['read_addr']))
                     attribute['read_value'] = attribute['write_value']
         except Exception,e:
             self.error_stream("In __applyWrite(%s) exception: %s"%(attrName,e))
@@ -453,14 +460,26 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         attribute = self._plc.attributes[attrName]
         #TODO: there is the possibility to include a formula eval here
         try:
+            if attribute.has_key('switch'):
+                switchAttr = self._plc.attributes[attribute['switch']]
+                if switchAttr['read_value'] == False:
+                    if attribute['read_value'] < -attribute['step']:
+                        attribute['read_value'] += attribute['step']
+                    elif attribute['read_value'] > attribute['step']:
+                        attribute['read_value'] -= attribute['step']
+                    else:
+                        attribute['read_value'] = 0.0
+                    return
             if attribute.has_key('reference'):
                 referenceAttr = self._plc.attributes[attribute['reference']]
                 if not attribute['read_value'] == referenceAttr['read_value']:
                     if attribute.has_key('step'):
-                        if referenceAttr['read_value'] < attribute['read_value']:
-                            attribute['read_value'] -= attribute['step']
-                        elif referenceAttr['read_value'] > attribute['read_value']:
-                            attribute['read_value'] += attribute['step']
+                        attribute['read_value'] = noise(referenceAttr['read_value'],\
+                                                        attribute['step']/10)
+#                         if referenceAttr['read_value'] < attribute['read_value']:
+#                             attribute['read_value'] -= attribute['step']
+#                         elif referenceAttr['read_value'] > attribute['read_value']:
+#                             attribute['read_value'] += attribute['step']
 #                         self.debug_stream("In _updateRegisters(): "\
 #                                           "step the value to the reference")
                     else:
@@ -552,14 +571,15 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         oldValue = bool(byte & (1 << bit))
         newValue = bool(value)
         if not newValue == oldValue:
-            if attrName == 'Locking': print("IN  byte = %s (value = %s)"%(bin(byte)[2:].zfill(8),repr(value)))
-            byte ^= 1 << bit
-            if attrName == 'Locking': print("OUT byte = %s"%(bin(byte)[2:].zfill(8)))
+            if newValue:
+                byte |= 1 << bit
+            else:
+                byte &= (0xFF)^(1 << bit)
             self._memoryMap[register] = byte
-            if attrName == 'Locking':
-                self.debug_stream("In __applyBoolean() replace %s with %s for the "\
-                                  "attribute %s [%d:%d]"%(repr(oldValue),repr(newValue),attrName,register,bit))
-                print self._memoryMap[register]
+            self.debug_stream("In __applyBoolean() replace %5s with %5s "\
+                              "for the attribute %s [%d:%d]"
+                              %(repr(oldValue),repr(newValue),
+                                attrName,register,bit))
     #----- PROTECTED REGION END -----#	//	LinacAlbaSimulator.global_variables
 #------------------------------------------------------------------
 #    Device constructor
