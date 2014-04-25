@@ -517,8 +517,12 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                     else:
                         attribute['read_value'] = attribute['ref_value']
                 elif attribute.has_key('range'):
-                    #attribute['read_value'] = random.randint(0,attribute['range'])
-                    attribute['read_value'] = (attribute['read_value']+1)%attribute['range']
+                    if type(attribute['range']) == list:
+                        min = attribute['range'][0]
+                        max = attribute['range'][1]
+                        attribute['read_value'] = random.randint(min,max)
+                    else:
+                        attribute['read_value'] = (attribute['read_value']+1)%attribute['range']
         except Exception,e:
                     self.error_stream("In __updateAttr(%s) exception: %s"
                                       %(attrName,e))
