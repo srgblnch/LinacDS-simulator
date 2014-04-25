@@ -117,7 +117,9 @@ attributes = \
            'updatable':True,'range':12},
  'LV_Time': {'read_addr': 42,
              'read_value': 10,
-             'type': ('h', 2)},
+             'type': ('h', 2),
+             #'updatable':True,'range':[0,300]
+             },
  'Lock_ST': {'read_addr': 41,
              'read_value': 0,
              'type': ('B',1)},
