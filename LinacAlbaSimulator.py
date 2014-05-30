@@ -740,12 +740,10 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         if oldValue != newValue:
             if newValue == True:
                 self._setJoinEvent(LOCAL)
-                #self._memoryMap[register] = 1
                 self._plc.attributes['Lock_ST']['read_value'] = 1
             elif newValue == False:
-                self._buildListenerThread(LOCAL)
-                #self._memoryMap[register] = 0
                 self._plc.attributes['Lock_ST']['read_value'] = 0
+                self._buildListenerThread(LOCAL)
             else:
                 self.error_stream("In write_Lock4labview() not understood %s"
                                   %(repr(data)))
