@@ -178,7 +178,11 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                 time.sleep(1)
                 self._buildSocketListener(connType)
         self.info_stream("In _listener(%d): exiting"%(self.Port[connType]))
-        self.__connection[connType].close()
+        try:
+            self.__connection[connType].close()
+        except Exception,e:
+            self.error_stream("Exception closing the connection %s: %s"
+                              %(connType,e))
 
     def _buildSocketListener(self,connType):
         try:
@@ -317,17 +321,17 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
             elif locking == False:
                 #This is the only attribute processed at this level
                 self._plc.attributes['Lock_ST']['read_value'] = 0
-                #self._plc.attributes['Locking']['write_value'] = False
-                #self.__apply2mem('Lock_ST')
+                self._plc.attributes['Locking']['write_value'] = False
+                self.__apply2mem('Lock_ST')
         elif locker == 2:
             if not origin == REMOTE:
                 #when is lock by the other origin, ignore what has been received
                 return
             elif locking == False:
                 #This is the only attribute processed at this level
-                #self._plc.attributes['Lock_ST']['read_value'] = 0
+                self._plc.attributes['Lock_ST']['read_value'] = 0
                 self._plc.attributes['Locking']['write_value'] = False
-                #self.__apply2mem('Lock_ST')
+                self.__apply2mem('Lock_ST')
         #exclude for the later processing the Lock_ST
         attrList = self._plc.attributes.keys()
         attrList.pop(attrList.index('Lock_ST'))
@@ -724,18 +728,24 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         self.debug_stream("Attribute value = " + str(data))
         #----- PROTECTED REGION ID(LinacAlbaSimulator.Lock4labview_write) ENABLED START -----#
         newValue = bool(data)
+        locker = self._plc.attributes['Lock_ST']['read_value']
+        if locker != 0 and newValue:
+            #already locked by local or remote, then lock operation not possible
+            raise Exception("Unable to simulate labview lock having another locker")
         register = self._plc.attributes['Lock_ST']['read_addr']
         #self.debug_stream("In write_Lock4labview() register = %d"%(register))
-        oldValue = bool(self._memoryMap[register])
+        oldValue = bool(self._memoryMap[register])#a little gros
         #self.debug_stream("In write_Lock4labview() current value: %s; to be %s"
         #                  %(repr(oldValue),repr(newValue)))
         if oldValue != newValue:
             if newValue == True:
                 self._setJoinEvent(LOCAL)
-                self._memoryMap[register] = 1
+                #self._memoryMap[register] = 1
+                self._plc.attributes['Lock_ST']['read_value'] = 1
             elif newValue == False:
                 self._buildListenerThread(LOCAL)
-                self._memoryMap[register] = 0
+                #self._memoryMap[register] = 0
+                self._plc.attributes['Lock_ST']['read_value'] = 0
             else:
                 self.error_stream("In write_Lock4labview() not understood %s"
                                   %(repr(data)))
