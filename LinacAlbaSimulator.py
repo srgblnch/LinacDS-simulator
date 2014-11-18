@@ -416,7 +416,8 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
                 #           action on its change.
                 self.__applyWrite(attrName)
                 self.__applyReference(attrName)
-                self.__updateAttr(attrName)
+                if self.attr_UpdatableRegisters_read:
+                    self.__updateAttr(attrName)
                 #after the three possibilities:
                 #it's time to place this value to the memory map that will be 
                 #transmitted to the reader
@@ -462,25 +463,48 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
             traceback.format_exc(e)
         
     def __applyReference(self,attrName):
-        '''check it this ROattribute becomes the readback of another Wattribute'''
+        '''Check if this ROattribute is a readback from another Wattribute 
+           and/or if it has relation with a switcher boolean Wattribute
+        '''
         attribute = self._plc.attributes[attrName]
         #TODO: there is the possibility to include a formula eval here
         try:
             if attribute.has_key('switch'):
-                switchAttr = self._plc.attributes[attribute['switch']]
+                switchName = attribute['switch']
+                self.info_stream("Attribute %s has switch %s"
+                                  %(attrName,switchName))
+                switchAttr = self._plc.attributes[switchName]
                 if switchAttr['read_value'] == False:
-                    if attribute['read_value'] < -attribute['step']:
-                        attribute['read_value'] += attribute['step']
-                    elif attribute['read_value'] > attribute['step']:
-                        attribute['read_value'] -= attribute['step']
+                    if attribute.has_key('step'):
+                        if attribute['read_value'] < -attribute['step']:
+                            attribute['read_value'] += attribute['step']
+                        elif attribute['read_value'] > attribute['step']:
+                            attribute['read_value'] -= attribute['step']
+                        else:
+                            attribute['read_value'] = 0.0
+                        attribute['read_value'] = noise(\
+                                                      attribute['read_value'],\
+                                                      attribute['step']/10)
                     else:
                         attribute['read_value'] = 0.0
+                    self.debug_stream("For %s, %s is off, then read_value %g"
+                                %(attrName,switchName,attribute['read_value']))
                     return
-            if attribute.has_key('reference'):
-                referenceAttr = self._plc.attributes[attribute['reference']]
-                if not attribute['ref_value'] == referenceAttr['read_value']:
+            if attribute.has_key('ref_value') and \
+                                                attribute.has_key('reference'):
+                referenceName = attribute['reference']
+                self.info_stream("Attribute %s has reference %s"
+                                  %(attrName,referenceName))
+                referenceAttr = self._plc.attributes[referenceName]
+#                if not attribute.has_key('ref_value'):
+#                    attribute['ref_value'] = attribute['read_value']
+                if attribute['ref_value'] != referenceAttr['read_value']:
+                    if referenceAttr.has_key('ref_value'):
+                        ref_value = referenceAttr['ref_value']
+                    else:
+                        ref_value = referenceAttr['read_value']
                     if attribute.has_key('step'):
-                        attribute['read_value'] = noise(referenceAttr['ref_value'],\
+                        attribute['ref_value'] = noise(ref_value,\
                                                         attribute['step']/10)
 #                         if referenceAttr['read_value'] < attribute['read_value']:
 #                             attribute['read_value'] -= attribute['step']
@@ -489,13 +513,14 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
 #                         self.debug_stream("In _updateRegisters(): "\
 #                                           "step the value to the reference")
                     else:
-                        attribute['read_value'] = referenceAttr['ref_value']
-#                         self.debug_stream("apply the reference read "\
-#                                           "value of %s"%(attrName))
+                        attribute['ref_value'] = ref_value
+                        self.info_stream("apply the reference read "\
+                                          "value of %s = %g"
+                                          %(attrName,ref_value))
         except Exception,e:
                     self.error_stream("In __applyReference(%s) exception: %s"
                                       %(attrName,e))
-                    traceback.format_exc(e)
+                    traceback.print_exc(e)
         
     def __updateAttr(self,attrName):
         '''check if the value has some noise in the reading to make it.'''
@@ -503,15 +528,24 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         try:
             if attribute.has_key('updatable') and \
                attribute['updatable'] == True:
+                self.info_stream("Attribute %s is updatable."%(attrName))
+#                if attribute.has_key('switch') and \
+#                           not self._plc.attributes['switch']['read_value']:
+#                    attribute['ref_value'] = 0
+#                elif attribute.has_key('ref_attr'):
+#                    refAttr = attribute['ref_attr']
+#                    refValue = self._plc.attributes[refAttr]['read_value']
+#                    attribute['ref_value'] = refValue
                 if attribute.has_key('std'):
                     #use the recorded value to introduce noise to it,
                     # this avoids a drift due to noise of noised
-                    attribute['read_value'] = noise(attribute['ref_value'],\
+                    value = noise(attribute['ref_value'],\
                                                     attribute['std'])
-#                    self.debug_stream("applying noise to:%20s "\
-#                                      "reference %6.3f (std:%6.3f) value %6.3f"
-#                                      %(attrName,attribute['read_value'],
-#                                        attribute['std'],value))
+                    self.info_stream("Applying noise to:%20s reference "\
+                                     "%6.3f (std:%6.3f) new value %6.3f"
+                                     %(attrName,attribute['read_value'],
+                                       attribute['std'],value))
+                    attribute['read_value'] = value
                 elif attribute.has_key('probability'):
                     probability = random.random()
                     if random.random() <= attribute['probability'] and \
@@ -634,6 +668,7 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         self.attr_RegisterAddress_read = 0
         self.attr_RegisterValue_read = 0
         self.attr_ListenerLoopPeriod_read = 0.0
+        self.attr_UpdatableRegisters_read = True
         self.attr_MemoryMap_read = []
         #----- PROTECTED REGION ID(LinacAlbaSimulator.init_device) ENABLED START -----#
         #tools for the Exec() cmd
@@ -817,6 +852,27 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
             raise ValueError("Period must be strictly positive")
         #----- PROTECTED REGION END -----#	//	LinacAlbaSimulator.ListenerLoopPeriod_write
         
+#------------------------------------------------------------------
+#    Read UpdatableRegisters attribute
+#------------------------------------------------------------------
+    def read_UpdatableRegisters(self, attr):
+        self.debug_stream("In " + self.get_name() + ".read_UpdatableRegisters()")
+        #----- PROTECTED REGION ID(LinacAlbaSimulator.UpdatableRegisters_read) ENABLED START -----#
+        
+        #----- PROTECTED REGION END -----#    //    LinacAlbaSimulator.UpdatableRegisters_read
+        attr.set_value(self.attr_UpdatableRegisters_read)
+        
+#------------------------------------------------------------------
+#    Write UpdatableRegisters attribute
+#------------------------------------------------------------------
+    def write_UpdatableRegisters(self, attr):
+        self.debug_stream("In " + self.get_name() + ".write_UpdatableRegisters()")
+        data=attr.get_write_value()
+        self.debug_stream("Attribute value = " + str(data))
+        #----- PROTECTED REGION ID(LinacAlbaSimulator.UpdatableRegisters_write) ENABLED START -----#
+        self.attr_UpdatableRegisters_read = bool(data)
+        #----- PROTECTED REGION END -----#    //    LinacAlbaSimulator.UpdatableRegisters_write
+
 #------------------------------------------------------------------
 #    Read MemoryMap attribute
 #------------------------------------------------------------------
@@ -1013,6 +1069,15 @@ class LinacAlbaSimulatorClass(PyTango.DeviceClass):
                 'label': "Heartbeat Period",
                 'unit': "s",
                 'description': "Internal loop to refresh the memory table.",
+                'Display level': PyTango.DispLevel.EXPERT,
+                'Memorized':"true"
+            } ],
+        'UpdatableRegisters':
+            [[PyTango.DevBoolean,
+            PyTango.SCALAR,
+            PyTango.READ_WRITE],
+            {
+                'description': "The registers simulating the plc may have an _updatable_ keyword to runtime change values for testing, this feature can be flagged to be stopped",
                 'Display level': PyTango.DispLevel.EXPERT,
                 'Memorized':"true"
             } ],
