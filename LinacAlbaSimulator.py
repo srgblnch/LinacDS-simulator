@@ -471,64 +471,86 @@ class LinacAlbaSimulator (PyTango.Device_4Impl):
         try:
             if attribute.has_key('switch'):
                 switchName = attribute['switch']
-                self.info_stream("Attribute %s has switch %s"
+                self.debug_stream("Attribute %s has switch %s"
                                   %(attrName,switchName))
                 switchAttr = self._plc.attributes[switchName]
                 if switchAttr['read_value'] == False:
-                    if attribute.has_key('step'):
-                        if attribute['read_value'] < -attribute['step']:
-                            attribute['read_value'] += attribute['step']
-                        elif attribute['read_value'] > attribute['step']:
-                            attribute['read_value'] -= attribute['step']
-                        else:
-                            attribute['read_value'] = 0.0
-                        attribute['read_value'] = noise(\
-                                                      attribute['read_value'],\
-                                                      attribute['step']/10)
-                    else:
-                        attribute['read_value'] = 0.0
-                    self.debug_stream("For %s, %s is off, then read_value %g"
+                    #when it is switch off
+                    self.__attrValueMove(attrName,attribute,0.0)
+                    self.info_stream("For %s (%s is OFF) read_value = %g"
                                 %(attrName,switchName,attribute['read_value']))
                     return
+                else:
+                    self.info_stream("%s is switch ON"%(switchName))
+            #when is switch ON (and also when it doesn't has a switch attr)
             if attribute.has_key('ref_value') and \
                                                 attribute.has_key('reference'):
                 referenceName = attribute['reference']
-                self.info_stream("Attribute %s has reference %s"
-                                  %(attrName,referenceName))
                 referenceAttr = self._plc.attributes[referenceName]
-#                if not attribute.has_key('ref_value'):
-#                    attribute['ref_value'] = attribute['read_value']
                 if attribute['ref_value'] != referenceAttr['read_value']:
-                    if referenceAttr.has_key('ref_value'):
-                        ref_value = referenceAttr['ref_value']
-                    else:
-                        ref_value = referenceAttr['read_value']
-                    if attribute.has_key('step'):
-                        attribute['ref_value'] = noise(ref_value,\
-                                                        attribute['step']/10)
-#                         if referenceAttr['read_value'] < attribute['read_value']:
-#                             attribute['read_value'] -= attribute['step']
-#                         elif referenceAttr['read_value'] > attribute['read_value']:
-#                             attribute['read_value'] += attribute['step']
-#                         self.debug_stream("In _updateRegisters(): "\
-#                                           "step the value to the reference")
-                    else:
-                        attribute['ref_value'] = ref_value
-                        self.info_stream("apply the reference read "\
-                                          "value of %s = %g"
-                                          %(attrName,ref_value))
+                    self.__attrValueMove(attrName,attribute,
+                                         referenceAttr['read_value'])
+                self.info_stream("Attribute %s has reference %s (%g,%g)"
+                                  %(attrName,referenceName,
+                                    attribute['ref_value'],
+                                    referenceAttr['read_value']))
         except Exception,e:
                     self.error_stream("In __applyReference(%s) exception: %s"
                                       %(attrName,e))
                     traceback.print_exc(e)
-        
+
+    def __attrValueMove(self,name,attribute,destinationValue):
+        try:
+            if attribute.has_key('ref_value'):
+                currentValue = attribute['ref_value']
+                self.info_stream("%s attrValueMove use the 'ref_value' (%g)"
+                                 %(name,currentValue))
+            else:
+                currentValue = attribute['read_value']
+                self.info_stream("%s attrValueMove use the 'read_value' (%g)"
+                                 %(name,currentValue))
+            if attribute.has_key('step'):
+                #slow move to destinationValue
+                diffValue = currentValue-destinationValue
+                if abs(diffValue) > attribute['step']:
+                    self.info_stream("%s apply step (%g) to %g"
+                                     %(name,attribute['step'],currentValue))
+                    if diffValue > 0:
+                        currentValue -= attribute['step']
+                    elif diffValue < 0:
+                        currentValue += attribute['step']
+                    self.info_stream("%s new value %g"%(name,currentValue))
+                else:
+                    currentValue = destinationValue
+                    self.info_stream("%s smaller than an step, "\
+                                     "apply directly (%g)"
+                                     %(name,currentValue))
+                #introduce a 10th of an step as noise.
+#                 currentValue = noise(currentValue,attribute['step']/10)
+#                 self.info_stream("%s noise applied: %g"%(name,currentValue))
+            else:
+                self.info_stream("%s doesn't move in steps, direct set"%(name))
+                currentValue = destinationValue
+            #set it back
+            if attribute.has_key('ref_value'):
+                attribute['ref_value'] = currentValue
+                self.info_stream("%s attrValueMove write the 'ref_value' (%g)"
+                                 %(name,attribute['ref_value']))
+            else:
+                attribute['read_value'] = currentValue
+                self.info_stream("%s attrValueMove write the 'read_value' (%g)"
+                                 %(name,attribute['read_value']))
+        except Exception,e:
+            self.warn_stream("Moving %s to %g exception: %s"
+                             %(name,destinationValue,e))
+
     def __updateAttr(self,attrName):
         '''check if the value has some noise in the reading to make it.'''
         attribute = self._plc.attributes[attrName]
         try:
             if attribute.has_key('updatable') and \
                attribute['updatable'] == True:
-                self.info_stream("Attribute %s is updatable."%(attrName))
+                self.debug_stream("Attribute %s is updatable."%(attrName))
 #                if attribute.has_key('switch') and \
 #                           not self._plc.attributes['switch']['read_value']:
 #                    attribute['ref_value'] = 0

@@ -62,12 +62,12 @@ attributes = \
  'HVPS_ST': {'read_addr': 39,
              'read_value': 8,
              'type': ('B', 1),
-             'updatable':True,'range':9},
+             'updatable':False,'range':9},
  'HVPS_V': {'read_addr': 12,
             'read_value': 0.0,
             'type': ('f', 4),
             'updatable': True,
-            'std': 1.01,
+            'std': 0.25,
             'step':0.5,
             'reference':'HVPS_V_setpoint',
             'switch':'HVPS_ONC'},
@@ -88,7 +88,7 @@ attributes = \
  'HEAT_ST': {'read_addr': 38,
              'read_value': 5,
              'type': ('B', 1),
-             'updatable':True,'range':5},
+             'updatable':False,'range':5},
  'HEAT_T':  {'read_addr': 44,
              'read_value': 10,
              'type': ('h', 2)},
@@ -114,7 +114,7 @@ attributes = \
  'LV_ST': {'read_addr': 37,
            'read_value': 12,
            'type': ('B', 1),
-           'updatable':True,'range':12},
+           'updatable':False,'range':12},
  'LV_Time': {'read_addr': 42,
              'read_value': 10,
              'type': ('h', 2),
@@ -143,7 +143,7 @@ attributes = \
  'PULSE_ST': {'read_addr': 40,
               'read_value': 7,
               'type': ('B', 1),
-              'updatable':True,'range':8}}
+              'updatable':False,'range':8}}
 
 #---- Read from li/ct/plc5 the 20130626
 #{'HVPS_I': {'read_addr': 16,
